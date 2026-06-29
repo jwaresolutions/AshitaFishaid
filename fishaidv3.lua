@@ -1,6 +1,6 @@
 _addon.author   = 'Thorny';
 _addon.name     = 'FishAid';
-_addon.version  = '1.0';
+_addon.version  = '1.1';
 
 require 'common'
 
@@ -17,8 +17,59 @@ local config = {
 
 local state = {
     Active = false,
+    Identified = false,
     Settings = config,
+    Fish = 'Waiting',
+    FishColor = '|cFF999900|',
+    Feel = 'Waiting',
+    FeelColor = '|cFF999900|',
 };
+
+local function strip_message(msg)
+    if (msg == nil) then
+        return '';
+    end
+
+    if (string.strip_colors ~= nil) then
+        return string.strip_colors(msg);
+    end
+
+    return msg;
+end
+
+local function title_case_name(name)
+    return name:gsub('(%a)([%w\'%-]*)', function (first, rest)
+        return first:upper() .. rest:lower();
+    end);
+end
+
+local function parse_keen_angler_fish(message)
+    if (message == nil) then
+        return nil;
+    end
+
+    message = message:trim();
+    message = message
+        :gsub(string.char(0xE2, 0x80, 0x99), "'")
+        :gsub(string.char(0xE2, 0x80, 0x98), "'");
+
+    local prefix = "your keen angler's senses tell you that this is the pull of ";
+    local start = message:lower():find(prefix, 1, true);
+
+    if (start == nil) then
+        return nil;
+    end
+
+    local fish = message:sub(start + #prefix);
+    fish = fish:gsub('[!.]$', ''):trim();
+    fish = fish:gsub('^[Aa]n ', ''):gsub('^[Aa] ', ''):trim();
+
+    if (#fish == 0) then
+        return nil;
+    end
+
+    return title_case_name(fish);
+end
 
 local hookMessages = {
     { message='Something caught the hook!!!', hook='Large Fish', color='|cFF00FF00|', logcolor=204 },
@@ -57,14 +108,23 @@ ashita.register_event('unload', function()
 end);
 
 
+local function reset_fishing_state()
+    state.Active = false;
+    state.Identified = false;
+    state.Fish = 'Waiting';
+    state.FishColor = '|cFF999900|';
+    state.Feel = 'Waiting';
+    state.FeelColor = '|cFF999900|';
+end
+
 ashita.register_event('incoming_packet', function(id, size, data)
     if (id == 0x00A) then
-        state.Active = false;
+        reset_fishing_state();
     end
 
     if (id == 0x037) then
         if (struct.unpack('B', data, 0x30 + 1) == 0) then
-            state.Active = false;
+            reset_fishing_state();
         end
     end
     
@@ -72,8 +132,20 @@ ashita.register_event('incoming_packet', function(id, size, data)
 end);
 
 ashita.register_event('incoming_text', function(mode, chat)
+    local message = strip_message(chat);
+
+    local keenFish = parse_keen_angler_fish(message);
+    if (keenFish ~= nil) then
+        state.Fish = keenFish;
+        state.FishColor = '|cFF00FF00|';
+        state.Identified = true;
+        state.Active = true;
+        return false;
+    end
+
     for _,entry in ipairs(hookMessages) do
-        if (string.match(chat, entry.message) ~= nil) then
+        if (string.match(message, entry.message) ~= nil) then
+            state.Identified = false;
             state.Feel = 'Unknown';
             state.FeelColor = '|cFF999900|';
             state.Fish = entry.hook;
@@ -85,7 +157,7 @@ ashita.register_event('incoming_text', function(mode, chat)
     end
     
     for _,entry in ipairs(feelMessages) do
-        if (string.match(chat, entry.message) ~= nil) then
+        if (string.match(message, entry.message) ~= nil) then
             state.Feel = entry.feel;
             state.FeelColor = entry.color;
             AshitaCore:GetChatManager():AddChatMessage(entry.logcolor, chat);
@@ -104,7 +176,15 @@ ashita.register_event('render', function()
     end
     
     if (state.Active == true) then
-        state.Font:SetText(string.format('Fish:%s%s|r Feeling:%s%s|r', state.FishColor, state.Fish, state.FeelColor, state.Feel));
+        if (state.Identified == true) then
+            if (state.Feel ~= 'Unknown' and state.Feel ~= 'Waiting') then
+                state.Font:SetText(string.format('%s%s|r  Feeling:%s%s|r', state.FishColor, state.Fish, state.FeelColor, state.Feel));
+            else
+                state.Font:SetText(string.format('%s%s|r', state.FishColor, state.Fish));
+            end
+        else
+            state.Font:SetText(string.format('Fish:%s%s|r Feeling:%s%s|r', state.FishColor, state.Fish, state.FeelColor, state.Feel));
+        end
         state.Font:SetVisibility(true);
     else
         state.Font:SetVisibility(false);

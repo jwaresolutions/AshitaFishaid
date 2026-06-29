@@ -2,6 +2,8 @@ Files created by Thorny on the Ashita Discord for TheAngryRogue on HorizonXI.
 Chat colors for fishing results changed to provide better visibility. Moveable text window to display results.
 ((Unload addon to save text window position and create a settings folder and file within the addon folder. Text Window font can be edited here.))
 
+**v1.1** — Keen Angler support: when your keen angler senses identify a fish (e.g. `Your keen angler's senses tell you that this is the pull of a moat carp!`), the overlay displays the fish name (e.g. `Moat Carp`) in green instead of a generic hook type.
+
 Use:  
   -Create a folder within your Ashita Addons save location called   'fishaid'  (Example: C:\Program Files (x86)\Ashita\addons)
 
